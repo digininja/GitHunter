@@ -28,6 +28,7 @@ type Commit struct {
 func main() {
 	log.SetLevel(log.DebugLevel)
 	gitDirPtr := flag.String("gitdir", "", "Directory containing the repository.")
+	dumpPtr := flag.Bool("dump", false, "Dump the commit details.")
 	flag.Parse()
 
 	gitDir := ""
@@ -49,7 +50,7 @@ func main() {
 		cmdArgs = append([]string{fmt.Sprintf("--git-dir=%s", gitDir)}, cmdArgs...)
 	}
 
-	log.Debugf("command arguments are: %u", cmdArgs)
+	log.Debugf("Command arguments are: %s", cmdArgs)
 
 	if cmdOut, err = exec.Command(cmdName, cmdArgs...).Output(); err != nil {
 		log.Fatal(fmt.Sprintf("There was an error running git command: %s", err))
@@ -62,30 +63,52 @@ func main() {
 	scanner := bufio.NewScanner(strings.NewReader(outputStr))
 	first := true
 	commit := Commit{}
+	comment := ""
+	var files []string
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "commit") {
 			if first {
 				first = false
 			} else {
+				commit.comment = strings.TrimSpace(comment)
+				commit.files = files
 				commits = append(commits, commit)
 				commit = Commit{}
+				comment = ""
+				files = nil
 			}
-			log.Debugf("Commit ID: %s\n", line)
+			//	log.Debugf("Commit ID: %s\n", line)
 			commit.id = line
 		} else if strings.HasPrefix(line, "Author") {
 			commit.author = line
 		} else if strings.HasPrefix(line, "Commit") {
 			commit.commit_by = line
-		} else if strings.HasPrefix(line, "Commit") {
-			commit.commit_by = line
+		} else if strings.HasPrefix(line, "    ") {
+			comment = comment + strings.TrimSpace(line) + "\n"
 		} else {
-			log.Debugf("Other: %s", scanner.Text())
+			if line != "" {
+				files = append(files, line)
+			}
 		}
 	}
+	commit.comment = strings.TrimSpace(comment)
+	commit.files = files
 	commits = append(commits, commit)
 
-	for _, c := range commits {
-		fmt.Println(c.id)
+	if *dumpPtr {
+		for i, c := range commits {
+			fmt.Printf("Commit Number: %d\n", len(commits)-i)
+
+			fmt.Printf("Commit ID: %s\n", c.id)
+			fmt.Printf("Author: %s\n", c.author)
+			fmt.Printf("Commit By: %s\n", c.commit_by)
+			fmt.Printf("Comments: %s\n", c.comment)
+			fmt.Println("Files:")
+			for _, f := range c.files {
+				fmt.Printf("  * %s\n", f)
+			}
+			fmt.Println()
+		}
 	}
 }
