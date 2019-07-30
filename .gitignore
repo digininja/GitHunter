@@ -11,3 +11,7 @@ GitHunter
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+
+# Vim swap files
+*.swp
+*.swq
