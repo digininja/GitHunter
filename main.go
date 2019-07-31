@@ -20,14 +20,52 @@ import (
 import log "github.com/sirupsen/logrus"
 
 var au aurora.Aurora
+var CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+var Banner = ` _______ __________________                           
+(  ____ \\__   __/\__   __/                           
+| (    \/   ) (      ) (                              
+| |         | |      | |                              
+| | ____    | |      | |                              
+| | \_  )   | |      | |                              
+| (___) |___) (___   | |                              
+(_______)\_______/   )_(                              
+                                                      
+                   _       _________ _______  _______ 
+|\     /||\     /|( (    /|\__   __/(  ____ \(  ____ )
+| )   ( || )   ( ||  \  ( |   ) (   | (    \/| (    )|
+| (___) || |   | ||   \ | |   | |   | (__    | (____)|
+|  ___  || |   | || (\ \) |   | |   |  __)   |     __)
+| (   ) || |   | || | \   |   | |   | (      | (\ (   
+| )   ( || (___) || )  \  |   | |   | (____/\| ) \ \__
+|/     \|(_______)|/    )_)   )_(   (_______/|/   \__/
+`
+
+var Usage = func() {
+	fmt.Fprintf(CommandLine.Output(), Banner)
+
+	fmt.Fprintf(CommandLine.Output(), fmt.Sprintf("\nUsage: %s [options]\n", os.Args[0]))
+	fmt.Fprintf(CommandLine.Output(), fmt.Sprintf("\nOptions:\n"))
+
+	CommandLine.PrintDefaults()
+}
 
 func main() {
-	//log.SetLevel(log.DebugLevel)
-	gitDirPtr := flag.String("gitdir", "", "Directory containing the repository.")
-	dumpPtr := flag.Bool("dump", false, "Dump the commit details.")
-	nocolours := flag.Bool("nocolours", false, "Set this to disable coloured output")
+	gitDirPtr := CommandLine.String("gitdir", "", "Directory containing the repository.")
+	dumpPtr := CommandLine.Bool("dump", false, "Dump the commit details.")
+	nocolours := CommandLine.Bool("nocolours", false, "Set this to disable coloured output")
+	debugPtr := CommandLine.String("debugLevel", "", "Debug options, I = Info, D = Full Debug")
 
-	flag.Parse()
+	CommandLine.Usage = Usage
+	CommandLine.Parse(os.Args[1:])
+
+	switch strings.ToUpper(*debugPtr) {
+	case "I":
+		log.SetLevel(log.InfoLevel)
+	case "D":
+		log.SetLevel(log.DebugLevel)
+	default:
+		log.SetLevel(log.InfoLevel)
+	}
 
 	gitDir := ""
 	if *gitDirPtr != "" {
