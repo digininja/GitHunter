@@ -10,19 +10,42 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"github.com/michenriksen/gitrob/core"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
+	"time"
 )
 
 import log "github.com/sirupsen/logrus"
 
 type Commit struct {
-	id        string
-	author    string
-	commit_by string
-	comment   string
-	files     []string
+	id         string
+	author     string
+	authorDate time.Time
+	commit     string
+	commitDate time.Time
+	comment    string
+	matchFiles []core.MatchFile
+}
+
+func (c *Commit) AuthorDate(line string) {
+	t, err := time.Parse("Mon Jan 2 15:04:05 2006 -0700", strings.TrimPrefix(line, "AuthorDate: "))
+	if err == nil {
+		c.authorDate = t
+	} else {
+		log.Debugf("Error parsing author date from: %s, err: %s\n", line, err)
+	}
+}
+
+func (c *Commit) CommitDate(line string) {
+	t, err := time.Parse("Mon Jan 2 15:04:05 2006 -0700", strings.TrimPrefix(line, "CommitDate: "))
+	if err == nil {
+		c.commitDate = t
+	} else {
+		log.Debugf("Error parsing commit date from: %s, err: %s\n", line, err)
+	}
 }
 
 func main() {
@@ -45,7 +68,7 @@ func main() {
 		err    error
 	)
 	cmdName := "git"
-	cmdArgs := []string{"log", "--pretty=full", "--name-only", "--all"}
+	cmdArgs := []string{"log", "--pretty=fuller", "--name-only", "--all"}
 	if gitDir != "" {
 		cmdArgs = append([]string{fmt.Sprintf("--git-dir=%s", gitDir)}, cmdArgs...)
 	}
@@ -64,7 +87,7 @@ func main() {
 	first := true
 	commit := Commit{}
 	comment := ""
-	var files []string
+	var matchFiles []core.MatchFile
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "commit") {
@@ -72,29 +95,43 @@ func main() {
 				first = false
 			} else {
 				commit.comment = strings.TrimSpace(comment)
-				commit.files = files
+				commit.matchFiles = matchFiles
+				matchFiles = nil
 				commits = append(commits, commit)
 				commit = Commit{}
 				comment = ""
-				files = nil
 			}
 			//	log.Debugf("Commit ID: %s\n", line)
-			commit.id = line
-		} else if strings.HasPrefix(line, "Author") {
-			commit.author = line
-		} else if strings.HasPrefix(line, "Commit") {
-			commit.commit_by = line
+			commit.id = strings.TrimPrefix(line, "commit ")
+		} else if strings.HasPrefix(line, "Author:    ") {
+			commit.author = strings.TrimPrefix(line, "Author:     ")
+		} else if strings.HasPrefix(line, "AuthorDate:") {
+			commit.AuthorDate(line)
+		} else if strings.HasPrefix(line, "Commit:    ") {
+			commit.commit = strings.TrimPrefix(line, "Commit:     ")
+		} else if strings.HasPrefix(line, "CommitDate:") {
+			commit.CommitDate(line)
 		} else if strings.HasPrefix(line, "    ") {
 			comment = comment + strings.TrimSpace(line) + "\n"
 		} else {
 			if line != "" {
-				files = append(files, line)
+				matchFile := core.NewMatchFile(line)
+				matchFiles = append(matchFiles, matchFile)
 			}
 		}
 	}
+
+	commit.matchFiles = matchFiles
 	commit.comment = strings.TrimSpace(comment)
-	commit.files = files
 	commits = append(commits, commit)
+
+	commentsToWatch := []string{"mistake", "oops", "certificate", "keys"}
+
+	commentsToWatchRegex := []*regexp.Regexp{}
+	for _, comment := range commentsToWatch {
+		var regexp = regexp.MustCompile(comment)
+		commentsToWatchRegex = append(commentsToWatchRegex, regexp)
+	}
 
 	if *dumpPtr {
 		for i, c := range commits {
@@ -102,13 +139,33 @@ func main() {
 
 			fmt.Printf("Commit ID: %s\n", c.id)
 			fmt.Printf("Author: %s\n", c.author)
-			fmt.Printf("Commit By: %s\n", c.commit_by)
+			fmt.Printf("Author Date: %s\n", c.authorDate.String())
+			fmt.Printf("Commit: %s\n", c.commit)
+			fmt.Printf("Commit Date: %s\n", c.commitDate.String())
 			fmt.Printf("Comments: %s\n", c.comment)
 			fmt.Println("Files:")
-			for _, f := range c.files {
-				fmt.Printf("  * %s\n", f)
+			for _, f := range c.matchFiles {
+				fmt.Printf("  * %s\n", f.Path)
 			}
 			fmt.Println()
+		}
+	} else {
+		for _, c := range commits {
+			for _, r := range commentsToWatchRegex {
+				if r.FindStringIndex(c.comment) != nil {
+					fmt.Printf("Match: %s\n", c.comment)
+				}
+			}
+		}
+	}
+	for _, s := range core.Signatures {
+		//		log.Printf("%s", s.Description())
+		for _, c := range commits {
+			for _, f := range c.matchFiles {
+				if s.Match(f) {
+					log.Printf("Got a match on %s, commit ID %s", f.Path, c.id)
+				}
+			}
 		}
 	}
 }
