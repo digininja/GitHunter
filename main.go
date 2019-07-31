@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"github.com/logrusorgru/aurora"
 	"github.com/michenriksen/gitrob/core"
 	"os"
 	"os/exec"
@@ -62,10 +63,14 @@ func (c *Commit) CommitDate(line string) {
 	}
 }
 
+var au aurora.Aurora
+
 func main() {
 	//log.SetLevel(log.DebugLevel)
 	gitDirPtr := flag.String("gitdir", "", "Directory containing the repository.")
 	dumpPtr := flag.Bool("dump", false, "Dump the commit details.")
+	nocolours := flag.Bool("nocolours", false, "Set this to disable coloured output")
+
 	flag.Parse()
 
 	gitDir := ""
@@ -76,6 +81,8 @@ func main() {
 			log.Fatalf("The specified directory does not exist or is not a Git repository")
 		}
 	}
+
+	au = aurora.NewAurora(!*nocolours)
 
 	var (
 		cmdOut []byte
@@ -156,7 +163,7 @@ func main() {
 		for _, c := range commits {
 			for _, r := range commentsToWatchRegex {
 				if r.FindStringIndex(c.comment) != nil {
-					fmt.Printf("Commit Match\n")
+					fmt.Println(au.Bold(au.Red("Commit Match")))
 					c.PrintCommit()
 					fmt.Println()
 				}
@@ -166,7 +173,11 @@ func main() {
 			for _, c := range commits {
 				for _, f := range c.matchFiles {
 					if s.Match(f) {
-						fmt.Printf("File Match\n")
+						fmt.Println(au.Bold(au.Red("File Match")))
+						fmt.Printf("Description: %s\n", s.Description())
+						if s.Comment() != "" {
+							fmt.Printf("Comment: %s\n", s.Comment())
+						}
 						c.PrintCommit()
 						fmt.Println()
 					}
