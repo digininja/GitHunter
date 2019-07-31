@@ -30,6 +30,20 @@ type Commit struct {
 	matchFiles []core.MatchFile
 }
 
+func (c *Commit) PrintCommit() {
+	fmt.Printf("Commit ID: %s\n", c.id)
+	fmt.Printf("Author: %s\n", c.author)
+	fmt.Printf("Author Date: %s\n", c.authorDate.String())
+	fmt.Printf("Commit: %s\n", c.commit)
+	fmt.Printf("Commit Date: %s\n", c.commitDate.String())
+	fmt.Printf("Comments: %s\n", c.comment)
+	fmt.Println("Files:")
+	for _, f := range c.matchFiles {
+		fmt.Printf("  * %s\n", f.Path)
+	}
+	fmt.Println()
+}
+
 func (c *Commit) AuthorDate(line string) {
 	t, err := time.Parse("Mon Jan 2 15:04:05 2006 -0700", strings.TrimPrefix(line, "AuthorDate: "))
 	if err == nil {
@@ -49,7 +63,7 @@ func (c *Commit) CommitDate(line string) {
 }
 
 func main() {
-	log.SetLevel(log.DebugLevel)
+	//log.SetLevel(log.DebugLevel)
 	gitDirPtr := flag.String("gitdir", "", "Directory containing the repository.")
 	dumpPtr := flag.Bool("dump", false, "Dump the commit details.")
 	flag.Parse()
@@ -136,34 +150,26 @@ func main() {
 	if *dumpPtr {
 		for i, c := range commits {
 			fmt.Printf("Commit Number: %d\n", len(commits)-i)
-
-			fmt.Printf("Commit ID: %s\n", c.id)
-			fmt.Printf("Author: %s\n", c.author)
-			fmt.Printf("Author Date: %s\n", c.authorDate.String())
-			fmt.Printf("Commit: %s\n", c.commit)
-			fmt.Printf("Commit Date: %s\n", c.commitDate.String())
-			fmt.Printf("Comments: %s\n", c.comment)
-			fmt.Println("Files:")
-			for _, f := range c.matchFiles {
-				fmt.Printf("  * %s\n", f.Path)
-			}
-			fmt.Println()
+			c.PrintCommit()
 		}
 	} else {
 		for _, c := range commits {
 			for _, r := range commentsToWatchRegex {
 				if r.FindStringIndex(c.comment) != nil {
-					fmt.Printf("Match: %s\n", c.comment)
+					fmt.Printf("Commit Match\n")
+					c.PrintCommit()
+					fmt.Println()
 				}
 			}
 		}
-	}
-	for _, s := range core.Signatures {
-		//		log.Printf("%s", s.Description())
-		for _, c := range commits {
-			for _, f := range c.matchFiles {
-				if s.Match(f) {
-					log.Printf("Got a match on %s, commit ID %s", f.Path, c.id)
+		for _, s := range core.Signatures {
+			for _, c := range commits {
+				for _, f := range c.matchFiles {
+					if s.Match(f) {
+						fmt.Printf("File Match\n")
+						c.PrintCommit()
+						fmt.Println()
+					}
 				}
 			}
 		}
