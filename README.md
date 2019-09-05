@@ -11,12 +11,12 @@ Thanks to [@michenriksen](https://github.com/michenriksen/) for allowing me to i
 For the two keyword checks, the script uses a customisable JSON file to allow you to do either simple or regular expressesion searches, meaning you can target the discovery to your client's environment.
 
 ## Installation
-1. [Set up your Go environment](https://golang.org/doc/install)
+1. [Set up your Go environment.](https://golang.org/doc/install)
 1. Checkout the project:
     ```
     go get https://github.com/digininja/GitHunter/
     ```
-1. Get any dependencies
+1. Get any dependencies:
     ```
     go get ./...
     ```
@@ -29,5 +29,4 @@ If you want a dump of the commit logs, without any commentary, then you can use 
 To specify a custom patterns file, use `-patterns` and to have the output without any fancy colours (easier for parsing) use `-nocolours`.
 
 ## Testing things out
-
 If you want a repository to test things on, have a look at my [Leaky Repo](https://github.com/digininja/leakyrepo) which contains quite a few interesting things to find.
