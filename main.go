@@ -12,12 +12,11 @@ import (
 	"fmt"
 	"github.com/logrusorgru/aurora"
 	"github.com/michenriksen/gitrob/core"
+	"github.com/sirupsen/logrus"
 	"os"
 	"os/exec"
 	"strings"
 )
-
-import log "github.com/sirupsen/logrus"
 
 var au aurora.Aurora
 var CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
@@ -49,7 +48,7 @@ var Usage = func() {
 	CommandLine.PrintDefaults()
 }
 
-var mainLogger = log.WithFields(log.Fields{"Owner": "Main"})
+var mainLogger = logrus.New()
 
 func main() {
 	gitDirPtr := CommandLine.String("gitdir", "", "Directory containing the repository.")
@@ -63,11 +62,11 @@ func main() {
 
 	switch strings.ToUpper(*debugPtr) {
 	case "I":
-		log.SetLevel(log.InfoLevel)
+		mainLogger.SetLevel(logrus.InfoLevel)
 	case "D":
-		log.SetLevel(log.DebugLevel)
+		mainLogger.SetLevel(logrus.DebugLevel)
 	default:
-		log.SetLevel(log.InfoLevel)
+		mainLogger.SetLevel(logrus.InfoLevel)
 	}
 
 	ParseConfig()

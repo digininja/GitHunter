@@ -29,7 +29,6 @@ type SimpleCommentSignature struct {
 }
 
 func (p *PatternCommentSignature) CompileRegexp() {
-	mainLogger.Debug("In here")
 	p.Regexp = regexp.MustCompile(p.Pattern)
 }
 
@@ -66,13 +65,14 @@ func (s PatternCommentSignature) Match(comment string) bool {
 
 var CommentSignatures = []CommentSignature{}
 
-type Patterns struct {
+type JSONPatterns struct {
 	Patterns []PatternCommentSignature
 	Simples  []SimpleCommentSignature
 }
 
 func ParseConfig() bool {
-	var configstruct Patterns
+	mainLogger.Debug("Starting JSON patterns file parsing")
+	var jsonPatterns JSONPatterns
 
 	jsonFile, err := os.Open("patterns.json")
 
@@ -84,51 +84,19 @@ func ParseConfig() bool {
 
 	byteValue, _ := ioutil.ReadAll(jsonFile)
 
-	json.Unmarshal(byteValue, &configstruct)
+	json.Unmarshal(byteValue, &jsonPatterns)
 
-	mainLogger.Debugf("Patterns: %u)", configstruct)
-
-	for _, pattern := range configstruct.Simples {
+	for _, pattern := range jsonPatterns.Simples {
 		CommentSignatures = append(CommentSignatures, pattern)
 	}
 
-	for _, pattern := range configstruct.Patterns {
+	for _, pattern := range jsonPatterns.Patterns {
+		// Doing this to compile the string in the JSON file into a
+		// regexp that can then be used by the match function
 		pattern.CompileRegexp()
 		CommentSignatures = append(CommentSignatures, pattern)
 	}
 
-	mainLogger.Debugf("Merged: %u", CommentSignatures)
-
-	for _, pattern := range CommentSignatures {
-		mainLogger.Debugf("Description is: %s", pattern.GetDescription())
-	}
-
-	mainLogger.Debug("done, out of here")
+	mainLogger.Debug("JSON patterns file parsing complete")
 	return true
 }
-
-/*
-var CommentSignatures = []CommentSignature{
-	SimpleCommentSignature{
-		Pattern:     "keys",
-		Description: "Mention of keys",
-		Comment:     "",
-	},
-	SimpleCommentSignature{
-		Pattern:     "oops",
-		Description: "Mention of oops - could imply a mistake",
-		Comment:     "",
-	},
-	SimpleCommentSignature{
-		Pattern:     "mistake",
-		Description: "Mention of mistake",
-		Comment:     "",
-	},
-	PatternCommentSignature{
-		// Prefix (?i) to make the regexp case insensitive
-		Pattern:     regexp.MustCompile("(?i)" + `[wx]whf`),
-		Description: "Regexp match",
-		Comment:     "",
-	},
-}
-*/
