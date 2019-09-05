@@ -70,11 +70,11 @@ type JSONPatterns struct {
 	Simples  []SimpleCommentSignature
 }
 
-func ParseConfig() bool {
+func ParsePatternsFile(patternsFile string) bool {
 	mainLogger.Debug("Starting JSON patterns file parsing")
 	var jsonPatterns JSONPatterns
 
-	jsonFile, err := os.Open("patterns.json")
+	jsonFile, err := os.Open(patternsFile)
 
 	if err != nil {
 		mainLogger.Fatalf("Error opening patterns file: %s", err)

@@ -78,6 +78,8 @@ func main() {
 		}
 		gitDir = fmt.Sprintf("%s.git", gitDir)
 		mainLogger.Debugf("Checking to see if Git directory exists: %s", gitDir)
+		// A few options here, this is why I went with this one:
+		// https://goruncode.com/how-to-check-if-a-file-exists/
 		if _, err := os.Stat(gitDir); err != nil {
 			mainLogger.Fatalf("The specified directory does not exist or does not contain a Git repository")
 		}

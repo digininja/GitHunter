@@ -13,13 +13,43 @@
 ],
 "simples": [
 	{
+		"pattern": "credentials",
+		"description": "Mention of credentials",
+		"comment": ""
+	},
+	{
+		"pattern": "todo",
+		"description": "Mention of todo",
+		"comment": "Stuff left to do may reveal holes"
+	},
+	{
+		"pattern": "certificate",
+		"description": "Mention of certificates",
+		"comment": ""
+	},
+	{
+		"pattern": "security",
+		"description": "Mention of security",
+		"comment": "Something to do with security so could be worth looking at."
+	},
+	{
+		"pattern": "vulnerability",
+		"description": "Mention of vulnerability",
+		"comment": "If they flag a vuln internally, it has to be worth looking at."
+	},
+	{
 		"pattern": "keys",
-		"description": "mention of keys",
+		"description": "Mention of keys",
 		"comment": ""
 	},
 	{
 		"pattern": "oops",
-		"description": "mention of oops - could imply a mistake",
+		"description": "Mention of oops - could imply a mistake",
+		"comment": ""
+	},
+	{
+		"pattern": "mistake",
+		"description": "Mention of mistake",
 		"comment": ""
 	}
 ]
