@@ -51,8 +51,9 @@ var Usage = func() {
 var mainLogger = logrus.New()
 
 func main() {
-	gitDirPtr := CommandLine.String("gitdir", "", "Directory containing the repository.")
-	dumpPtr := CommandLine.Bool("dump", false, "Dump the commit details.")
+	gitDirPtr := CommandLine.String("gitdir", "", "Directory containing the repository")
+	patternsFilePtr := CommandLine.String("patterns", "patterns.json", "File containing patterns to match")
+	dumpPtr := CommandLine.Bool("dump", false, "Dump the commit details")
 	nocolours := CommandLine.Bool("nocolours", false, "Set this to disable coloured output")
 	debugPtr := CommandLine.String("debugLevel", "", "Debug options, I = Info, D = Full Debug")
 	//testPtr := CommandLine.Bool("test", true, "Test stuff")
@@ -69,8 +70,6 @@ func main() {
 		mainLogger.SetLevel(logrus.InfoLevel)
 	}
 
-	ParseConfig()
-
 	gitDir := ""
 	if *gitDirPtr != "" {
 		gitDir = *gitDirPtr
@@ -79,10 +78,19 @@ func main() {
 		}
 		gitDir = fmt.Sprintf("%s.git", gitDir)
 		mainLogger.Debugf("Checking to see if Git directory exists: %s", gitDir)
-		if _, err := os.Stat(gitDir); os.IsNotExist(err) {
-			mainLogger.Fatalf("The specified directory does not exist or is not a Git repository")
+		if _, err := os.Stat(gitDir); err != nil {
+			mainLogger.Fatalf("The specified directory does not exist or does not contain a Git repository")
 		}
 	}
+
+	patternsFile := *patternsFilePtr
+	mainLogger.Debugf("Checking to see if patterns file exists: %s", patternsFile)
+
+	if _, err := os.Stat(patternsFile); err != nil {
+		mainLogger.Fatalf("The specified patterns file does not exist")
+	}
+
+	ParsePatternsFile(patternsFile)
 
 	au = aurora.NewAurora(!*nocolours)
 
