@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-import log "github.com/sirupsen/logrus"
-
 type Commit struct {
 	id         string
 	author     string
@@ -38,7 +36,7 @@ func (c *Commit) AuthorDate(line string) {
 	if err == nil {
 		c.authorDate = t
 	} else {
-		log.Debugf("Error parsing author date from: %s, err: %s\n", line, err)
+		mainLogger.Debugf("Error parsing author date from: %s, err: %s\n", line, err)
 	}
 }
 
@@ -47,6 +45,6 @@ func (c *Commit) CommitDate(line string) {
 	if err == nil {
 		c.commitDate = t
 	} else {
-		log.Debugf("Error parsing commit date from: %s, err: %s\n", line, err)
+		mainLogger.Debugf("Error parsing commit date from: %s, err: %s\n", line, err)
 	}
 }
