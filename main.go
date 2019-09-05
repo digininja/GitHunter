@@ -73,7 +73,11 @@ func main() {
 
 	gitDir := ""
 	if *gitDirPtr != "" {
-		gitDir = fmt.Sprintf("%s/.git", *gitDirPtr)
+		gitDir = *gitDirPtr
+		if gitDir[len(gitDir)-1:] != "/" {
+			gitDir = gitDir + "/"
+		}
+		gitDir = fmt.Sprintf("%s.git", gitDir)
 		mainLogger.Debugf("Checking to see if Git directory exists: %s", gitDir)
 		if _, err := os.Stat(gitDir); os.IsNotExist(err) {
 			mainLogger.Fatalf("The specified directory does not exist or is not a Git repository")
