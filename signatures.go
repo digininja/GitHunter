@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"io/ioutil"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -15,66 +18,117 @@ func ContainsI(a string, b string) bool {
 
 type CommentSignature interface {
 	Match(comment string) bool
-	Description() string
-	Comment() string
+	GetDescription() string
+	GetComment() string
 }
 
 type SimpleCommentSignature struct {
-	match       string
-	description string
-	comment     string
+	Pattern     string
+	Description string
+	Comment     string
+}
+
+func (p *PatternCommentSignature) CompileRegexp() {
+	mainLogger.Debug("In here")
+	p.Regexp = regexp.MustCompile(p.Pattern)
 }
 
 type PatternCommentSignature struct {
-	match       *regexp.Regexp
-	description string
-	comment     string
+	Regexp      *regexp.Regexp
+	Pattern     string
+	Description string
+	Comment     string
 }
 
-func (s SimpleCommentSignature) Comment() string {
-	return s.comment
+func (s SimpleCommentSignature) GetComment() string {
+	return s.Comment
 }
 
-func (s PatternCommentSignature) Comment() string {
-	return s.comment
+func (s PatternCommentSignature) GetComment() string {
+	return s.Comment
 }
 
-func (s SimpleCommentSignature) Description() string {
-	return s.description
+func (s SimpleCommentSignature) GetDescription() string {
+	return s.Description
 }
 
-func (s PatternCommentSignature) Description() string {
-	return s.description
+func (s PatternCommentSignature) GetDescription() string {
+	return s.Description
 }
 
 func (s SimpleCommentSignature) Match(comment string) bool {
-	return ContainsI(comment, s.match)
+	return ContainsI(comment, s.Pattern)
 }
 
 func (s PatternCommentSignature) Match(comment string) bool {
-	return s.match.MatchString(comment)
+	return s.Regexp.MatchString(comment)
 }
 
+var CommentSignatures = []CommentSignature{}
+
+type Patterns struct {
+	Patterns []PatternCommentSignature
+	Simples  []SimpleCommentSignature
+}
+
+func ParseConfig() bool {
+	var configstruct Patterns
+
+	jsonFile, err := os.Open("patterns.json")
+
+	if err != nil {
+		mainLogger.Fatalf("Error opening patterns file: %s", err)
+	}
+
+	defer jsonFile.Close()
+
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+
+	json.Unmarshal(byteValue, &configstruct)
+
+	mainLogger.Debugf("Patterns: %u)", configstruct)
+
+	for _, pattern := range configstruct.Simples {
+		CommentSignatures = append(CommentSignatures, pattern)
+	}
+
+	for _, pattern := range configstruct.Patterns {
+		pattern.CompileRegexp()
+		CommentSignatures = append(CommentSignatures, pattern)
+	}
+
+	mainLogger.Debugf("Merged: %u", CommentSignatures)
+
+	for _, pattern := range CommentSignatures {
+		mainLogger.Debugf("Description is: %s", pattern.GetDescription())
+	}
+
+	mainLogger.Debug("done, out of here")
+	return true
+}
+
+/*
 var CommentSignatures = []CommentSignature{
 	SimpleCommentSignature{
-		match:       "keys",
-		description: "Mention of keys",
-		comment:     "",
+		Pattern:     "keys",
+		Description: "Mention of keys",
+		Comment:     "",
 	},
 	SimpleCommentSignature{
-		match:       "oops",
-		description: "Mention of oops - could imply a mistake",
-		comment:     "",
+		Pattern:     "oops",
+		Description: "Mention of oops - could imply a mistake",
+		Comment:     "",
 	},
 	SimpleCommentSignature{
-		match:       "mistake",
-		description: "Mention of mistake",
-		comment:     "",
+		Pattern:     "mistake",
+		Description: "Mention of mistake",
+		Comment:     "",
 	},
 	PatternCommentSignature{
 		// Prefix (?i) to make the regexp case insensitive
-		match:       regexp.MustCompile("(?i)" + `[wx]whf`),
-		description: "Regexp match",
-		comment:     "",
+		Pattern:     regexp.MustCompile("(?i)" + `[wx]whf`),
+		Description: "Regexp match",
+		Comment:     "",
 	},
 }
+*/

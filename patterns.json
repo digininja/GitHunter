@@ -1,0 +1,26 @@
+{
+"patterns": [
+	{
+		"pattern": "(?i)[wx]whf",
+		"description": "WWHF",
+		"comment": "A mention of Wild West HackingFest"
+	},
+	{
+		"pattern": "(?i).*password.*",
+		"description": "password regex",
+		"comment": "simple regex pattern"
+	}
+],
+"simples": [
+	{
+		"pattern": "keys",
+		"description": "mention of keys",
+		"comment": ""
+	},
+	{
+		"pattern": "oops",
+		"description": "mention of oops - could imply a mistake",
+		"comment": ""
+	}
+]
+}

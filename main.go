@@ -49,11 +49,14 @@ var Usage = func() {
 	CommandLine.PrintDefaults()
 }
 
+var mainLogger = log.WithFields(log.Fields{"Owner": "Main"})
+
 func main() {
 	gitDirPtr := CommandLine.String("gitdir", "", "Directory containing the repository.")
 	dumpPtr := CommandLine.Bool("dump", false, "Dump the commit details.")
 	nocolours := CommandLine.Bool("nocolours", false, "Set this to disable coloured output")
 	debugPtr := CommandLine.String("debugLevel", "", "Debug options, I = Info, D = Full Debug")
+	//testPtr := CommandLine.Bool("test", true, "Test stuff")
 
 	CommandLine.Usage = Usage
 	CommandLine.Parse(os.Args[1:])
@@ -67,12 +70,14 @@ func main() {
 		log.SetLevel(log.InfoLevel)
 	}
 
+	ParseConfig()
+
 	gitDir := ""
 	if *gitDirPtr != "" {
 		gitDir = fmt.Sprintf("%s/.git", *gitDirPtr)
-		log.Debugf("Checking to see if Git directory exists: %s", gitDir)
+		mainLogger.Debugf("Checking to see if Git directory exists: %s", gitDir)
 		if _, err := os.Stat(gitDir); os.IsNotExist(err) {
-			log.Fatalf("The specified directory does not exist or is not a Git repository")
+			mainLogger.Fatalf("The specified directory does not exist or is not a Git repository")
 		}
 	}
 
@@ -88,10 +93,10 @@ func main() {
 		cmdArgs = append([]string{fmt.Sprintf("--git-dir=%s", gitDir)}, cmdArgs...)
 	}
 
-	log.Debugf("Command arguments are: %s", cmdArgs)
+	mainLogger.Debugf("Command arguments are: %s", cmdArgs)
 
 	if cmdOut, err = exec.Command(cmdName, cmdArgs...).Output(); err != nil {
-		log.Fatal(fmt.Sprintf("There was an error running git command: %s", err))
+		mainLogger.Fatal(fmt.Sprintf("There was an error running git command: %s", err))
 	}
 	outputStr := string(cmdOut)
 	// fmt.Println("Output from command: %s", outputStr)
@@ -116,7 +121,7 @@ func main() {
 				commit = Commit{}
 				comment = ""
 			}
-			//	log.Debugf("Commit ID: %s\n", line)
+			//	mainLogger.Debugf("Commit ID: %s\n", line)
 			commit.id = strings.TrimPrefix(line, "commit ")
 		} else if strings.HasPrefix(line, "Author:    ") {
 			commit.author = strings.TrimPrefix(line, "Author:     ")
@@ -150,9 +155,9 @@ func main() {
 			for _, s := range CommentSignatures {
 				if s.Match(c.comment) {
 					fmt.Println(au.Bold(au.Red("Commit Match")))
-					fmt.Printf("Description: %s\n", s.Description())
-					if s.Comment() != "" {
-						fmt.Printf("Comment: %s\n", s.Comment())
+					fmt.Printf("Description: %s\n", s.GetDescription())
+					if s.GetComment() != "" {
+						fmt.Printf("Comment: %s\n", s.GetComment())
 					}
 					c.PrintCommit()
 					fmt.Println()
