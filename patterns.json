@@ -33,6 +33,11 @@
 		"comment": "Something to do with security so could be worth looking at."
 	},
 	{
+		"pattern": "vuln",
+		"description": "Mention of vuln",
+		"comment": "Could be the mention of a vulnerability."
+	},
+	{
 		"pattern": "vulnerability",
 		"description": "Mention of vulnerability",
 		"comment": "If they flag a vuln internally, it has to be worth looking at."

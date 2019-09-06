@@ -51,15 +51,24 @@ var Usage = func() {
 var mainLogger = logrus.New()
 
 func main() {
-	gitDirPtr := CommandLine.String("gitdir", "", "Directory containing the repository")
+	gitDirPtr := CommandLine.String("gitdir", ".", "Directory containing the repository")
 	patternsFilePtr := CommandLine.String("patterns", "patterns.json", "File containing patterns to match")
 	dumpPtr := CommandLine.Bool("dump", false, "Dump the commit details")
-	nocolours := CommandLine.Bool("nocolours", false, "Set this to disable coloured output")
+	nocoloursPtr := CommandLine.Bool("nocolours", false, "Set this to disable coloured output")
+	helpPtr := CommandLine.Bool("help", false, "Show usage information")
+	doGrepPtr := CommandLine.Bool("grep", false, "Grep files for content")
 	debugPtr := CommandLine.String("debugLevel", "", "Debug options, I = Info, D = Full Debug")
 	//testPtr := CommandLine.Bool("test", true, "Test stuff")
 
 	CommandLine.Usage = Usage
 	CommandLine.Parse(os.Args[1:])
+
+	if *helpPtr {
+		Usage()
+		os.Exit(-1)
+	}
+
+	doGrep := *doGrepPtr
 
 	switch strings.ToUpper(*debugPtr) {
 	case "I":
@@ -83,6 +92,8 @@ func main() {
 		if _, err := os.Stat(gitDir); err != nil {
 			mainLogger.Fatalf("The specified directory does not exist or does not contain a Git repository")
 		}
+	} else {
+		Usage()
 	}
 
 	patternsFile := *patternsFilePtr
@@ -94,7 +105,7 @@ func main() {
 
 	ParsePatternsFile(patternsFile)
 
-	au = aurora.NewAurora(!*nocolours)
+	au = aurora.NewAurora(!*nocoloursPtr)
 
 	var (
 		cmdOut []byte
@@ -106,13 +117,14 @@ func main() {
 		cmdArgs = append([]string{fmt.Sprintf("--git-dir=%s", gitDir)}, cmdArgs...)
 	}
 
+	mainLogger.Debug("Getting all commit messages and files")
 	mainLogger.Debugf("Command arguments are: %s", cmdArgs)
 
 	if cmdOut, err = exec.Command(cmdName, cmdArgs...).Output(); err != nil {
 		mainLogger.Fatal(fmt.Sprintf("There was an error running git command: %s", err))
 	}
 	outputStr := string(cmdOut)
-	// fmt.Println("Output from command: %s", outputStr)
+	// mainLogger.Debugf("Output from command: %s", outputStr)
 
 	var commits []Commit
 
@@ -164,8 +176,39 @@ func main() {
 			c.PrintCommit()
 		}
 	} else {
+		somethingFound := false
+		// Have to define this outside the next block so it is available later
+		revList := ""
+
+		// Only need to pull the list of revisions out once
+		// and only if doing a grep
+
+		if doGrep {
+			var (
+				revCmdOut []byte
+				err       error
+			)
+
+			revCmdName := "git"
+			revCmdArgs := []string{"rev-list", "--all"}
+			if gitDir != "" {
+				revCmdArgs = append([]string{fmt.Sprintf("--git-dir=%s", gitDir)}, revCmdArgs...)
+			}
+
+			mainLogger.Debug("Running git rev-list")
+			mainLogger.Debugf("Command arguments are: %s", revCmdArgs)
+
+			if revCmdOut, err = exec.Command(revCmdName, revCmdArgs...).Output(); err != nil {
+				mainLogger.Fatal(fmt.Sprintf("There was an error running git rev-list command: %s", err))
+			}
+			revList = string(revCmdOut)
+		}
+
 		for _, c := range commits {
 			for _, s := range CommentSignatures {
+
+				// Check the commit messages
+
 				if s.Match(c.comment) {
 					fmt.Println(au.Bold(au.Red("Commit Match")))
 					fmt.Printf("Description: %s\n", s.GetDescription())
@@ -174,7 +217,64 @@ func main() {
 					}
 					c.PrintCommit()
 					fmt.Println()
+					somethingFound = true
 				}
+
+				// Now checking for file contents
+
+				if doGrep {
+					var (
+						cmdOut []byte
+						err    error
+					)
+
+					cmdName := "git"
+					//cmdName = "./echoit.sh"
+					// need to check for prefix of (?i) and if found, strip and add a -i to grep
+					cmdArgs := []string{"grep", "-E", s.GetPattern()}
+
+					// If there is a new line on the end, it creates an empty element at the end of the slice.
+					// That is then passed as an empty argument to git which causes it to fail, even though it is nothing
+					// So remove the trailing new line before splitting it and everything works.
+					// Nearly an hour of debugging time to find this!
+					if revList[len(revList)-1:] == "\n" {
+						revList = revList[:len(revList)-1]
+					}
+					revisionsMap := strings.Split(revList, "\n")
+
+					for _, revisionId := range revisionsMap {
+						fmt.Printf("adding: %s", revisionId)
+						cmdArgs = append(cmdArgs, []string{revisionId}...)
+					}
+
+					if gitDir != "" {
+						cmdArgs = append([]string{fmt.Sprintf("--git-dir=%s", gitDir)}, cmdArgs...)
+					}
+
+					mainLogger.Debug("Running a git grep")
+					mainLogger.Debugf("Command arguments are: %s", cmdArgs)
+
+					// If there are no matches, git will return 1
+					// Matches have a return code of 0
+					cmdOut, err = exec.Command(cmdName, cmdArgs...).Output()
+
+					mainLogger.Debugf("cmdOut: %s", cmdOut)
+					mainLogger.Debugf("err: %s", err)
+
+					// Don't bail on 1
+					if err == nil || err.Error() == "exit status 1" {
+						fmt.Printf("ok")
+					} else {
+						mainLogger.Fatal(fmt.Sprintf("There was an error running git grep command: %s", err))
+					}
+					outputStr := string(cmdOut)
+					mainLogger.Debugf("Output from command: %s", outputStr)
+				}
+				// git --git-dir=/home/robin/src/leakyrepo/.git grep -Ei "[vW]ulnerability" $(git --git-dir=/home/robin/src/leakyrepo/.git rev-list --all)
+
+				// this needs to go in here
+				// git grep -Ei "[vW]ulnerability" $(git rev-list --all)
+
 			}
 
 			for _, s := range core.Signatures {
@@ -187,9 +287,13 @@ func main() {
 						}
 						c.PrintCommit()
 						fmt.Println()
+						somethingFound = true
 					}
 				}
 			}
+		}
+		if !somethingFound {
+			fmt.Println("Sorry, no interesting information found")
 		}
 	}
 }

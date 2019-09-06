@@ -20,6 +20,7 @@ type CommentSignature interface {
 	Match(comment string) bool
 	GetDescription() string
 	GetComment() string
+	GetPattern() string
 }
 
 type SimpleCommentSignature struct {
@@ -45,6 +46,14 @@ func (s SimpleCommentSignature) GetComment() string {
 
 func (s PatternCommentSignature) GetComment() string {
 	return s.Comment
+}
+
+func (s SimpleCommentSignature) GetPattern() string {
+	return s.Pattern
+}
+
+func (s PatternCommentSignature) GetPattern() string {
+	return s.Pattern
 }
 
 func (s SimpleCommentSignature) GetDescription() string {
