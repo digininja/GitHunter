@@ -126,7 +126,8 @@ func main() {
 	outputStr := string(cmdOut)
 	// mainLogger.Debugf("Output from command: %s", outputStr)
 
-	var commits []Commit
+	//var commits []Commit
+	commits := map[string]Commit{}
 
 	scanner := bufio.NewScanner(strings.NewReader(outputStr))
 	first := true
@@ -142,7 +143,7 @@ func main() {
 				commit.comment = strings.TrimSpace(comment)
 				commit.matchFiles = matchFiles
 				matchFiles = nil
-				commits = append(commits, commit)
+				commits[commit.id] = commit
 				commit = Commit{}
 				comment = ""
 			}
@@ -168,12 +169,14 @@ func main() {
 
 	commit.matchFiles = matchFiles
 	commit.comment = strings.TrimSpace(comment)
-	commits = append(commits, commit)
+	commits[commit.id] = commit
 
 	if *dumpPtr {
-		for i, c := range commits {
-			fmt.Printf("Commit Number: %d\n", len(commits)-i)
+		pos := len(commits)
+		for _, c := range commits {
+			fmt.Printf("Commit Number: %d\n", pos)
 			c.PrintCommit()
+			pos = pos - 1
 		}
 	} else {
 		somethingFound := false
@@ -230,9 +233,8 @@ func main() {
 
 					cmdName := "git"
 					cmdArgs := []string{}
-					//cmdName = "./echoit.sh"
-					// need to check for prefix of (?i) and if found, strip and add a -i to grep
-					mainLogger.Debugf("first 4 are: %s", s.GetPattern()[0:4])
+
+					// Need to check for prefix of (?i) and if found, strip and add a -i to grep
 					if s.GetPattern()[0:4] == "(?i)" {
 						pattern := strings.Replace(s.GetPattern(), "(?i)", "", 1)
 						cmdArgs = []string{"grep", "-i", "-E", pattern}
@@ -278,12 +280,22 @@ func main() {
 					}
 					outputStr := string(cmdOut)
 					mainLogger.Debugf("Output from command: %s", outputStr)
+					/*
+						Can parse through outputStr to pull out individual lines
+						each line is of the style
+
+						6b965f2253e2d0c412e365828d697c9108dbacd3:settings.yaml:password="999aaaa"
+						c731fb976f2bbdee7ecd2729df56e2811ff99c93:settings.yaml:password="sskriafFa"
+
+						Parse out the commit id, then the file name and the match
+
+						can print commit with this:
+
+						a := commits["5fbc1813cc61f4f897c6729a479cdc2c6f97d7d5"]
+						a.PrintCommit()
+						os.Exit(1)
+					*/
 				}
-				// git --git-dir=/home/robin/src/leakyrepo/.git grep -Ei "[vW]ulnerability" $(git --git-dir=/home/robin/src/leakyrepo/.git rev-list --all)
-
-				// this needs to go in here
-				// git grep -Ei "[vW]ulnerability" $(git rev-list --all)
-
 			}
 
 			for _, s := range core.Signatures {
