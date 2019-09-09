@@ -208,6 +208,8 @@ func main() {
 			}
 			revList = string(revCmdOut)
 
+			// Naming these but not using the names at the moment. For more info see:
+			// https://github.com/StefanSchroeder/Golang-Regex-Tutorial/blob/master/01-chapter2.markdown#named-matches
 			grepOutputRegexpStr := "^(?P<ID>[a-f0-9]*):(?P<File>[^:]*):(?P<Message>.*)$"
 			grepOutputRegexp = regexp.MustCompile(grepOutputRegexpStr)
 		}
