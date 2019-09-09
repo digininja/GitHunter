@@ -229,9 +229,16 @@ func main() {
 					)
 
 					cmdName := "git"
+					cmdArgs := []string{}
 					//cmdName = "./echoit.sh"
 					// need to check for prefix of (?i) and if found, strip and add a -i to grep
-					cmdArgs := []string{"grep", "-E", s.GetPattern()}
+					mainLogger.Debugf("first 4 are: %s", s.GetPattern()[0:4])
+					if s.GetPattern()[0:4] == "(?i)" {
+						pattern := strings.Replace(s.GetPattern(), "(?i)", "", 1)
+						cmdArgs = []string{"grep", "-i", "-E", pattern}
+					} else {
+						cmdArgs = []string{"grep", "-E", s.GetPattern()}
+					}
 
 					// If there is a new line on the end, it creates an empty element at the end of the slice.
 					// That is then passed as an empty argument to git which causes it to fail, even though it is nothing
@@ -259,7 +266,9 @@ func main() {
 					cmdOut, err = exec.Command(cmdName, cmdArgs...).Output()
 
 					mainLogger.Debugf("cmdOut: %s", cmdOut)
-					mainLogger.Debugf("err: %s", err)
+					if err != nil {
+						mainLogger.Debugf("err: %s", err.Error())
+					}
 
 					// Don't bail on 1
 					if err == nil || err.Error() == "exit status 1" {
