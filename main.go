@@ -15,6 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 )
 
@@ -170,6 +171,7 @@ func main() {
 	commit.matchFiles = matchFiles
 	commit.comment = strings.TrimSpace(comment)
 	commits[commit.id] = commit
+	var grepOutputRegexp *regexp.Regexp
 
 	if *dumpPtr {
 		pos := len(commits)
@@ -205,6 +207,9 @@ func main() {
 				mainLogger.Fatal(fmt.Sprintf("There was an error running git rev-list command: %s", err))
 			}
 			revList = string(revCmdOut)
+
+			grepOutputRegexpStr := "^(?P<ID>[a-f0-9]*):(?P<File>[^:]*):(?P<Message>.*)$"
+			grepOutputRegexp = regexp.MustCompile(grepOutputRegexpStr)
 		}
 
 		for _, c := range commits {
@@ -252,7 +257,7 @@ func main() {
 					revisionsMap := strings.Split(revList, "\n")
 
 					for _, revisionId := range revisionsMap {
-						fmt.Printf("adding: %s", revisionId)
+						//mainLogger.Debugf("Adding revision to the command arguments: %s", revisionId)
 						cmdArgs = append(cmdArgs, []string{revisionId}...)
 					}
 
@@ -267,34 +272,35 @@ func main() {
 					// Matches have a return code of 0
 					cmdOut, err = exec.Command(cmdName, cmdArgs...).Output()
 
-					mainLogger.Debugf("cmdOut: %s", cmdOut)
 					if err != nil {
 						mainLogger.Debugf("err: %s", err.Error())
 					}
 
-					// Don't bail on 1
-					if err == nil || err.Error() == "exit status 1" {
-						fmt.Printf("ok")
+					if err == nil {
+						cmdOutStr := string(cmdOut)
+						if cmdOutStr[len(cmdOutStr)-1:] == "\n" {
+							cmdOutStr = cmdOutStr[:len(cmdOutStr)-1]
+						}
+						cmdOutMap := strings.Split(cmdOutStr, "\n")
+
+						for _, commitLine := range cmdOutMap {
+							fmt.Println(au.Bold(au.Red("Grep Match")))
+							//	mainLogger.Debugf("Commit line: %s", commitLine)
+							//	mainLogger.Debugf("Commit line: %s", grepOutputRegexp)
+							matchBits := grepOutputRegexp.FindStringSubmatch(commitLine)
+							commit := commits[matchBits[1]]
+							commit.PrintCommit()
+							fmt.Printf("Match In File: %s\n", matchBits[2])
+							fmt.Printf("Matching Line: %s\n\n", matchBits[3])
+						}
+
+					} else if err.Error() == "exit status 1" {
+						// Don't bail on 1
 					} else {
 						mainLogger.Fatal(fmt.Sprintf("There was an error running git grep command: %s", err))
 					}
-					outputStr := string(cmdOut)
-					mainLogger.Debugf("Output from command: %s", outputStr)
-					/*
-						Can parse through outputStr to pull out individual lines
-						each line is of the style
-
-						6b965f2253e2d0c412e365828d697c9108dbacd3:settings.yaml:password="999aaaa"
-						c731fb976f2bbdee7ecd2729df56e2811ff99c93:settings.yaml:password="sskriafFa"
-
-						Parse out the commit id, then the file name and the match
-
-						can print commit with this:
-
-						a := commits["5fbc1813cc61f4f897c6729a479cdc2c6f97d7d5"]
-						a.PrintCommit()
-						os.Exit(1)
-					*/
+					//	outputStr := string(cmdOut)
+					//	mainLogger.Debugf("Output from command: %s", outputStr)
 				}
 			}
 
