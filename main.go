@@ -1,11 +1,5 @@
 package main
 
-/*
-This is a good reference for running commands:
-
-https://nathanleclaire.com/blog/2014/12/29/shelled-out-commands-in-golang/
-*/
-
 import (
 	"bufio"
 	"flag"
@@ -286,7 +280,7 @@ func main() {
 						cmdOutMap := strings.Split(cmdOutStr, "\n")
 
 						for _, commitLine := range cmdOutMap {
-							fmt.Println(au.Bold(au.Red("Grep Match")))
+							fmt.Println(au.Bold(au.Green("Grep Match")))
 							//	mainLogger.Debugf("Commit line: %s", commitLine)
 							//	mainLogger.Debugf("Commit line: %s", grepOutputRegexp)
 							matchBits := grepOutputRegexp.FindStringSubmatch(commitLine)
@@ -309,7 +303,7 @@ func main() {
 			for _, s := range core.Signatures {
 				for _, f := range c.matchFiles {
 					if s.Match(f) {
-						fmt.Println(au.Bold(au.Red("File Match")))
+						fmt.Println(au.Bold(au.Blue("File Match")))
 						fmt.Printf("Description: %s\n", s.Description())
 						if s.Comment() != "" {
 							fmt.Printf("Comment: %s\n", s.Comment())
