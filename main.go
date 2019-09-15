@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 var au aurora.Aurora
@@ -55,7 +56,6 @@ func main() {
 	helpPtr := CommandLine.Bool("help", false, "Show usage information")
 	doGrepPtr := CommandLine.Bool("grep", false, "Grep files for content")
 	debugPtr := CommandLine.String("debugLevel", "", "Debug options, I = Info, D = Full Debug")
-	//testPtr := CommandLine.Bool("test", true, "Test stuff")
 
 	CommandLine.Usage = Usage
 	CommandLine.Parse(os.Args[1:])
@@ -182,7 +182,6 @@ func main() {
 
 		// Only need to pull the list of revisions out once
 		// and only if doing a grep
-
 		if doGrep {
 			revList := ""
 			var (
@@ -219,6 +218,8 @@ func main() {
 			grepOutputRegexp = regexp.MustCompile(grepOutputRegexpStr)
 		}
 
+		var wg sync.WaitGroup
+
 		for _, commit := range Commits {
 			for _, signature := range CommentSignatures {
 				/*
@@ -230,24 +231,28 @@ func main() {
 				*/
 
 				// Check the commit messages
-				go fmt.Printf(CommitMessageSearch(commit, signature))
+				wg.Add(1)
+				go fmt.Printf(CommitMessageSearch(&wg, commit, signature))
 
 				// Now checking for file contents
 				if doGrep {
-					go fmt.Printf(GrepSearch(commit, signature, revisionsSlice, gitDir, grepOutputRegexp))
+					wg.Add(1)
+					go fmt.Printf(GrepSearch(&wg, commit, signature, revisionsSlice, gitDir, grepOutputRegexp))
 				}
 			}
 			// Finally check filenames
-			go fmt.Printf(FilenameSearch(commit))
+			wg.Add(1)
+			go fmt.Printf(FilenameSearch(&wg, commit))
 
 		}
+		wg.Wait()
 		if !SomethingFound {
 			fmt.Println("Sorry, no interesting information found")
 		}
 	}
 }
 
-func FilenameSearch(commit Commit) string {
+func FilenameSearch(wg *sync.WaitGroup, commit Commit) string {
 	output := ""
 
 	for _, signature := range core.Signatures {
@@ -263,10 +268,11 @@ func FilenameSearch(commit Commit) string {
 			}
 		}
 	}
+	wg.Done()
 	return output
 }
 
-func CommitMessageSearch(commit Commit, signature CommentSignature) string {
+func CommitMessageSearch(wg *sync.WaitGroup, commit Commit, signature CommentSignature) string {
 	output := ""
 	if signature.Match(commit.comment) {
 		output += fmt.Sprintln(au.Bold(au.Red("Commit Match")))
@@ -277,10 +283,12 @@ func CommitMessageSearch(commit Commit, signature CommentSignature) string {
 		output += commit.GetCommitString()
 		SomethingFound = true
 	}
+
+	wg.Done()
 	return output
 }
 
-func GrepSearch(commit Commit, signature CommentSignature, revisionsSlice []string, gitDir string, grepOutputRegexp *regexp.Regexp) string {
+func GrepSearch(wg *sync.WaitGroup, commit Commit, signature CommentSignature, revisionsSlice []string, gitDir string, grepOutputRegexp *regexp.Regexp) string {
 	output := ""
 
 	var (
@@ -344,5 +352,6 @@ func GrepSearch(commit Commit, signature CommentSignature, revisionsSlice []stri
 	}
 	//	outputStr := string(cmdOut)
 	//	mainLogger.Debugf("Output from command: %s", outputStr)
+	wg.Done()
 	return output
 }
