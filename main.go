@@ -208,18 +208,18 @@ func main() {
 			grepOutputRegexp = regexp.MustCompile(grepOutputRegexpStr)
 		}
 
-		for _, c := range commits {
-			for _, s := range CommentSignatures {
+		for _, commit := range commits {
+			for _, signature := range CommentSignatures {
 
 				// Check the commit messages
 
-				if s.Match(c.comment) {
+				if signature.Match(commit.comment) {
 					fmt.Println(au.Bold(au.Red("Commit Match")))
-					fmt.Printf("Description: %s\n", s.GetDescription())
-					if s.GetComment() != "" {
-						fmt.Printf("Comment: %s\n", s.GetComment())
+					fmt.Printf("Description: %s\n", signature.GetDescription())
+					if signature.GetComment() != "" {
+						fmt.Printf("Comment: %s\n", signature.GetComment())
 					}
-					c.PrintCommit()
+					commit.PrintCommit()
 					fmt.Println()
 					somethingFound = true
 				}
@@ -236,11 +236,11 @@ func main() {
 					cmdArgs := []string{}
 
 					// Need to check for prefix of (?i) and if found, strip and add a -i to grep
-					if s.GetPattern()[0:4] == "(?i)" {
-						pattern := strings.Replace(s.GetPattern(), "(?i)", "", 1)
+					if signature.GetPattern()[0:4] == "(?i)" {
+						pattern := strings.Replace(signature.GetPattern(), "(?i)", "", 1)
 						cmdArgs = []string{"grep", "-i", "-E", pattern}
 					} else {
-						cmdArgs = []string{"grep", "-E", s.GetPattern()}
+						cmdArgs = []string{"grep", "-E", signature.GetPattern()}
 					}
 
 					// If there is a new line on the end, it creates an empty element at the end of the slice.
@@ -300,15 +300,15 @@ func main() {
 				}
 			}
 
-			for _, s := range core.Signatures {
-				for _, f := range c.matchFiles {
-					if s.Match(f) {
+			for _, signature := range core.Signatures {
+				for _, file := range commit.matchFiles {
+					if signature.Match(file) {
 						fmt.Println(au.Bold(au.Blue("File Match")))
-						fmt.Printf("Description: %s\n", s.Description())
-						if s.Comment() != "" {
-							fmt.Printf("Comment: %s\n", s.Comment())
+						fmt.Printf("Description: %s\n", signature.Description())
+						if signature.Comment() != "" {
+							fmt.Printf("Comment: %s\n", signature.Comment())
 						}
-						c.PrintCommit()
+						commit.PrintCommit()
 						fmt.Println()
 						somethingFound = true
 					}
