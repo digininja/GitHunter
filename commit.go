@@ -18,17 +18,25 @@ type Commit struct {
 }
 
 func (c *Commit) PrintCommit() {
-	fmt.Printf("Commit ID: %s\n", c.id)
-	fmt.Printf("Author: %s\n", c.author)
-	fmt.Printf("Author Date: %s\n", c.authorDate.String())
-	fmt.Printf("Commit: %s\n", c.commit)
-	fmt.Printf("Commit Date: %s\n", c.commitDate.String())
-	fmt.Printf("Comments: %s\n", c.comment)
-	fmt.Println("Files:")
+	fmt.Printf(c.GetCommitString())
+}
+
+func (c *Commit) GetCommitString() string {
+	output := ""
+
+	output += fmt.Sprintf("Commit ID: %s\n", c.id)
+	output += fmt.Sprintf("Author: %s\n", c.author)
+	output += fmt.Sprintf("Author Date: %s\n", c.authorDate.String())
+	output += fmt.Sprintf("Commit: %s\n", c.commit)
+	output += fmt.Sprintf("Commit Date: %s\n", c.commitDate.String())
+	output += fmt.Sprintf("Comments: %s\n", c.comment)
+	output += fmt.Sprintln("Files:")
 	for _, f := range c.matchFiles {
-		fmt.Printf("  * %s\n", f.Path)
+		output += fmt.Sprintf("  * %s\n", f.Path)
 	}
-	fmt.Println()
+	output += fmt.Sprintln()
+
+	return output
 }
 
 func (c *Commit) AuthorDate(line string) {

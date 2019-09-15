@@ -44,6 +44,8 @@ var Usage = func() {
 }
 
 var mainLogger = logrus.New()
+var SomethingFound = false
+var Commits map[string]Commit
 
 func main() {
 	gitDirPtr := CommandLine.String("gitdir", ".", "Directory containing the repository")
@@ -121,13 +123,13 @@ func main() {
 	outputStr := string(cmdOut)
 	// mainLogger.Debugf("Output from command: %s", outputStr)
 
-	//var commits []Commit
-	commits := map[string]Commit{}
-
 	scanner := bufio.NewScanner(strings.NewReader(outputStr))
 	first := true
 	commit := Commit{}
 	comment := ""
+
+	Commits = make(map[string]Commit)
+
 	var matchFiles []core.MatchFile
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -138,7 +140,7 @@ func main() {
 				commit.comment = strings.TrimSpace(comment)
 				commit.matchFiles = matchFiles
 				matchFiles = nil
-				commits[commit.id] = commit
+				Commits[commit.id] = commit
 				commit = Commit{}
 				comment = ""
 			}
@@ -164,25 +166,25 @@ func main() {
 
 	commit.matchFiles = matchFiles
 	commit.comment = strings.TrimSpace(comment)
-	commits[commit.id] = commit
+	Commits[commit.id] = commit
 	var grepOutputRegexp *regexp.Regexp
 
 	if *dumpPtr {
-		pos := len(commits)
-		for _, c := range commits {
+		pos := len(Commits)
+		for _, c := range Commits {
 			fmt.Printf("Commit Number: %d\n", pos)
 			c.PrintCommit()
 			pos = pos - 1
 		}
 	} else {
-		somethingFound := false
 		// Have to define this outside the next block so it is available later
-		revList := ""
+		var revisionsSlice []string
 
 		// Only need to pull the list of revisions out once
 		// and only if doing a grep
 
 		if doGrep {
+			revList := ""
 			var (
 				revCmdOut []byte
 				err       error
@@ -202,121 +204,144 @@ func main() {
 			}
 			revList = string(revCmdOut)
 
+			// If there is a new line on the end, it creates an empty element at the end of the slice.
+			// That is then passed as an empty argument to git which causes it to fail, even though it is nothing
+			// So remove the trailing new line before splitting it and everything works.
+			// Nearly an hour of debugging time to find this!
+			if revList[len(revList)-1:] == "\n" {
+				revList = revList[:len(revList)-1]
+			}
+			revisionsSlice = strings.Split(revList, "\n")
+
 			// Naming these but not using the names at the moment. For more info see:
 			// https://github.com/StefanSchroeder/Golang-Regex-Tutorial/blob/master/01-chapter2.markdown#named-matches
 			grepOutputRegexpStr := "^(?P<ID>[a-f0-9]*):(?P<File>[^:]*):(?P<Message>.*)$"
 			grepOutputRegexp = regexp.MustCompile(grepOutputRegexpStr)
 		}
 
-		for _, commit := range commits {
+		for _, commit := range Commits {
 			for _, signature := range CommentSignatures {
+				/*
+				   These are not guaranteed to all finish if the app finishes first.
+				   Need to move them to channels
+
+				   https://golangbot.com/channels/
+				*/
 
 				// Check the commit messages
-
-				if signature.Match(commit.comment) {
-					fmt.Println(au.Bold(au.Red("Commit Match")))
-					fmt.Printf("Description: %s\n", signature.GetDescription())
-					if signature.GetComment() != "" {
-						fmt.Printf("Comment: %s\n", signature.GetComment())
-					}
-					commit.PrintCommit()
-					fmt.Println()
-					somethingFound = true
-				}
+				go fmt.Printf(CommitMessageSearch(commit, signature))
 
 				// Now checking for file contents
-
 				if doGrep {
-					var (
-						cmdOut []byte
-						err    error
-					)
-
-					cmdName := "git"
-					cmdArgs := []string{}
-
-					// Need to check for prefix of (?i) and if found, strip and add a -i to grep
-					if signature.GetPattern()[0:4] == "(?i)" {
-						pattern := strings.Replace(signature.GetPattern(), "(?i)", "", 1)
-						cmdArgs = []string{"grep", "-i", "-E", pattern}
-					} else {
-						cmdArgs = []string{"grep", "-E", signature.GetPattern()}
-					}
-
-					// If there is a new line on the end, it creates an empty element at the end of the slice.
-					// That is then passed as an empty argument to git which causes it to fail, even though it is nothing
-					// So remove the trailing new line before splitting it and everything works.
-					// Nearly an hour of debugging time to find this!
-					if revList[len(revList)-1:] == "\n" {
-						revList = revList[:len(revList)-1]
-					}
-					revisionsMap := strings.Split(revList, "\n")
-
-					for _, revisionId := range revisionsMap {
-						//mainLogger.Debugf("Adding revision to the command arguments: %s", revisionId)
-						cmdArgs = append(cmdArgs, []string{revisionId}...)
-					}
-
-					if gitDir != "" {
-						cmdArgs = append([]string{fmt.Sprintf("--git-dir=%s", gitDir)}, cmdArgs...)
-					}
-
-					mainLogger.Debug("Running a git grep")
-					mainLogger.Debugf("Command arguments are: %s", cmdArgs)
-
-					// If there are no matches, git will return 1
-					// Matches have a return code of 0
-					cmdOut, err = exec.Command(cmdName, cmdArgs...).Output()
-
-					if err != nil {
-						mainLogger.Debugf("err: %s", err.Error())
-					}
-
-					if err == nil {
-						cmdOutStr := string(cmdOut)
-						if cmdOutStr[len(cmdOutStr)-1:] == "\n" {
-							cmdOutStr = cmdOutStr[:len(cmdOutStr)-1]
-						}
-						cmdOutMap := strings.Split(cmdOutStr, "\n")
-
-						for _, commitLine := range cmdOutMap {
-							fmt.Println(au.Bold(au.Green("Grep Match")))
-							//	mainLogger.Debugf("Commit line: %s", commitLine)
-							//	mainLogger.Debugf("Commit line: %s", grepOutputRegexp)
-							matchBits := grepOutputRegexp.FindStringSubmatch(commitLine)
-							commit := commits[matchBits[1]]
-							commit.PrintCommit()
-							fmt.Printf("Match In File: %s\n", matchBits[2])
-							fmt.Printf("Matching Line: %s\n\n", matchBits[3])
-						}
-
-					} else if err.Error() == "exit status 1" {
-						// Don't bail on 1
-					} else {
-						mainLogger.Fatal(fmt.Sprintf("There was an error running git grep command: %s", err))
-					}
-					//	outputStr := string(cmdOut)
-					//	mainLogger.Debugf("Output from command: %s", outputStr)
+					go fmt.Printf(GrepSearch(commit, signature, revisionsSlice, gitDir, grepOutputRegexp))
 				}
 			}
+			// Finally check filenames
+			go fmt.Printf(FilenameSearch(commit))
 
-			for _, signature := range core.Signatures {
-				for _, file := range commit.matchFiles {
-					if signature.Match(file) {
-						fmt.Println(au.Bold(au.Blue("File Match")))
-						fmt.Printf("Description: %s\n", signature.Description())
-						if signature.Comment() != "" {
-							fmt.Printf("Comment: %s\n", signature.Comment())
-						}
-						commit.PrintCommit()
-						fmt.Println()
-						somethingFound = true
-					}
-				}
-			}
 		}
-		if !somethingFound {
+		if !SomethingFound {
 			fmt.Println("Sorry, no interesting information found")
 		}
 	}
+}
+
+func FilenameSearch(commit Commit) string {
+	output := ""
+
+	for _, signature := range core.Signatures {
+		for _, file := range commit.matchFiles {
+			if signature.Match(file) {
+				output += fmt.Sprintln(au.Bold(au.Blue("File Match")))
+				output += fmt.Sprintf("Description: %s\n", signature.Description())
+				if signature.Comment() != "" {
+					output += fmt.Sprintf("Comment: %s\n", signature.Comment())
+				}
+				output += commit.GetCommitString()
+				SomethingFound = true
+			}
+		}
+	}
+	return output
+}
+
+func CommitMessageSearch(commit Commit, signature CommentSignature) string {
+	output := ""
+	if signature.Match(commit.comment) {
+		output += fmt.Sprintln(au.Bold(au.Red("Commit Match")))
+		output += fmt.Sprintf("Description: %s\n", signature.GetDescription())
+		if signature.GetComment() != "" {
+			output += fmt.Sprintf("Comment: %s\n", signature.GetComment())
+		}
+		output += commit.GetCommitString()
+		SomethingFound = true
+	}
+	return output
+}
+
+func GrepSearch(commit Commit, signature CommentSignature, revisionsSlice []string, gitDir string, grepOutputRegexp *regexp.Regexp) string {
+	output := ""
+
+	var (
+		cmdOut []byte
+		err    error
+	)
+
+	cmdName := "git"
+	cmdArgs := []string{}
+
+	// Need to check for prefix of (?i) and if found, strip and add a -i to grep
+	if signature.GetPattern()[0:4] == "(?i)" {
+		pattern := strings.Replace(signature.GetPattern(), "(?i)", "", 1)
+		cmdArgs = []string{"grep", "-i", "-E", pattern}
+	} else {
+		cmdArgs = []string{"grep", "-E", signature.GetPattern()}
+	}
+
+	for _, revisionId := range revisionsSlice {
+		//mainLogger.Debugf("Adding revision to the command arguments: %s", revisionId)
+		cmdArgs = append(cmdArgs, []string{revisionId}...)
+	}
+
+	if gitDir != "" {
+		cmdArgs = append([]string{fmt.Sprintf("--git-dir=%s", gitDir)}, cmdArgs...)
+	}
+
+	mainLogger.Debug("Running a git grep")
+	mainLogger.Debugf("Command arguments are: %s", cmdArgs)
+
+	// If there are no matches, git will return 1
+	// Matches have a return code of 0
+	cmdOut, err = exec.Command(cmdName, cmdArgs...).Output()
+
+	if err != nil {
+		mainLogger.Debugf("err: %s", err.Error())
+	}
+
+	if err == nil {
+		cmdOutStr := string(cmdOut)
+		if cmdOutStr[len(cmdOutStr)-1:] == "\n" {
+			cmdOutStr = cmdOutStr[:len(cmdOutStr)-1]
+		}
+		cmdOutMap := strings.Split(cmdOutStr, "\n")
+
+		for _, commitLine := range cmdOutMap {
+			output += fmt.Sprintln(au.Bold(au.Green("Grep Match")))
+			//	mainLogger.Debugf("Commit line: %s", commitLine)
+			//	mainLogger.Debugf("Commit line: %s", grepOutputRegexp)
+			matchBits := grepOutputRegexp.FindStringSubmatch(commitLine)
+			commit := Commits[matchBits[1]]
+			output += commit.GetCommitString()
+			output += fmt.Sprintf("Match In File: %s\n", matchBits[2])
+			output += fmt.Sprintf("Matching Line: %s\n\n", matchBits[3])
+		}
+
+	} else if err.Error() == "exit status 1" {
+		// Don't bail on 1
+	} else {
+		mainLogger.Fatal(fmt.Sprintf("There was an error running git grep command: %s", err))
+	}
+	//	outputStr := string(cmdOut)
+	//	mainLogger.Debugf("Output from command: %s", outputStr)
+	return output
 }
