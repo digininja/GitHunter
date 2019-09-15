@@ -20,9 +20,11 @@ For the two keyword checks, the script uses a customisable JSON file to allow yo
     ```
     go get ./...
     ```
-    
+
 ## Usage
-Usage is fairly simple, by default, GitHunter will look in the current directory for a `.git` directory and, if it finds one, will parse through it and show anything interesting it finds. You can specify a different directory for the repository with the `-gitdir` parameter.
+Usage is fairly simple, by default, GitHunter will look in the current directory for a `.git` directory and, if it finds one, will parse through it and show anything interesting it finds in either filenames or in commit comments. You can specify a different directory for the repository with the `-gitdir` parameter.
+
+If you want to expand what is searched to include file contents at each commit, you can add the `-grep` parameter, but be warned, git, on my box at least, runs single threaded, and can take a long time to do the grepping on a large repository. It actually failed trying to grep through Metasploit, due to the sheer number of commits and content. Still worth trying it though, especially on smaller repos, as you may find something.
 
 If you want a dump of the commit logs, without any commentary, then you can use the `-dump` parameter.
 
