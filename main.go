@@ -223,9 +223,10 @@ func main() {
 			for _, signature := range CommentSignatures {
 				/*
 				   These are not guaranteed to all finish if the app finishes first.
-				   Need to move them to channels
+				   Need to move them to channels and waitgroups
 
 				   https://golangbot.com/channels/
+				   https://golangbot.com/buffered-channels-worker-pools/
 				*/
 
 				// Check the commit messages
