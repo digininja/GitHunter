@@ -47,6 +47,7 @@ var Usage = func() {
 var mainLogger = logrus.New()
 var SomethingFound = false
 var Commits map[string]Commit
+var outputDestination *os.File
 
 func main() {
 	gitDirPtr := CommandLine.String("gitdir", ".", "Directory containing the repository")
@@ -56,6 +57,7 @@ func main() {
 	helpPtr := CommandLine.Bool("help", false, "Show usage information")
 	doGrepPtr := CommandLine.Bool("grep", false, "Grep files for content")
 	debugPtr := CommandLine.String("debugLevel", "", "Debug options, I = Info, D = Full Debug")
+	outputToPtr := CommandLine.String("output", "-", "File to write output to, - for standard out")
 
 	CommandLine.Usage = Usage
 	CommandLine.Parse(os.Args[1:])
@@ -75,6 +77,19 @@ func main() {
 	default:
 		mainLogger.SetLevel(logrus.InfoLevel)
 	}
+
+	if *outputToPtr == "-" {
+		outputDestination = os.Stdout
+	} else {
+		var err error
+		outputDestination, err = os.Create(*outputToPtr)
+		if err != nil {
+			mainLogger.Fatalf("Error creating the output file: %s", err)
+		}
+	}
+
+	defer outputDestination.Close()
+	outputDestination.WriteString(fmt.Sprintf("hello"))
 
 	gitDir := ""
 	if *gitDirPtr != "" {
@@ -172,7 +187,7 @@ func main() {
 	if *dumpPtr {
 		pos := len(Commits)
 		for _, c := range Commits {
-			fmt.Printf("Commit Number: %d\n", pos)
+			outputDestination.WriteString(fmt.Sprintf("Commit Number: %d\n", pos))
 			c.PrintCommit()
 			pos = pos - 1
 		}
@@ -251,7 +266,7 @@ func main() {
 		close(hitsChannel)
 		<-done
 		if !SomethingFound {
-			fmt.Println("Sorry, no interesting information found")
+			outputDestination.WriteString(fmt.Sprintln("Sorry, no interesting information found"))
 		}
 	}
 }
@@ -273,7 +288,7 @@ var hitsChannel = make(chan Hit, 10)
 
 func printHits(done chan bool) {
 	for hit := range hitsChannel {
-		fmt.Printf(hit.output)
+		outputDestination.WriteString(fmt.Sprintf(hit.output))
 		//fmt.Printf("Hit from the hits channel: %s\n", hit.commit.id)
 	}
 	done <- true
