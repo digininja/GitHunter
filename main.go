@@ -33,6 +33,8 @@ var Banner = ` _______ __________________
 | (   ) || |   | || | \   |   | |   | (      | (\ (   
 | )   ( || (___) || )  \  |   | |   | (____/\| ) \ \__
 |/     \|(_______)|/    )_)   )_(   (_______/|/   \__/
+
+By Robin Wood - https://digi.ninja - robin@digi.ninja
 `
 
 var Usage = func() {
@@ -89,7 +91,11 @@ func main() {
 	}
 
 	defer outputDestination.Close()
-	outputDestination.WriteString(fmt.Sprintf("hello"))
+
+	fmt.Println(Banner)
+	if *outputToPtr != "-" {
+		fmt.Printf("Writing output to: %s\n", *outputToPtr)
+	}
 
 	gitDir := ""
 	if *gitDirPtr != "" {
