@@ -261,6 +261,19 @@ func main() {
 				// Now checking for file contents
 				if doGrep {
 					wg.Add(1)
+					mainLogger.Debugf("revision slice length is %d", len(revisionsSlice))
+					/*
+					   There is a problem here with the number of open files if there
+					   are a lot of revisions. Each thread opens lots of files
+					   so doing it concurrently doesn't work well. May have to make
+					   this single threaded.
+
+					   Thought this would help but it doesn't.
+
+					   					if len(revisionsSlice) > 20 {
+					   						revisionsSlice = revisionsSlice[0:20]
+					   					}
+					*/
 					go GrepSearch(&wg, commit, signature, revisionsSlice, gitDir, grepOutputRegexp)
 				}
 			}
