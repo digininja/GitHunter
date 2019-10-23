@@ -16,6 +16,10 @@ For the two keyword checks, the script uses a customisable JSON file to allow yo
     ```
     go get https://github.com/digininja/GitHunter/
     ```
+1. Change into the project directory:
+    ```
+    cd ~/go/src/github.com/digininja/GitHunter/
+    ```
 1. Get any dependencies:
     ```
     go get ./...
