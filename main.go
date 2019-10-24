@@ -199,7 +199,7 @@ func main() {
 		}
 	} else {
 		// Have to define this outside the next block so it is available later
-		var revisionsSlice []string
+		var revisionSliceChunks [][]string
 
 		// Only need to pull the list of revisions out once
 		// and only if doing a grep
@@ -231,7 +231,17 @@ func main() {
 			if revList[len(revList)-1:] == "\n" {
 				revList = revList[:len(revList)-1]
 			}
+			var revisionsSlice []string
 			revisionsSlice = strings.Split(revList, "\n")
+			// The higher this number, the more revisions grep will search at once
+			// but the longer it will take doing it and so the output will look
+			// jerky.
+			chunkSize := 100
+			for len(revisionsSlice) > chunkSize {
+				revisionSliceChunks = append(revisionSliceChunks, revisionsSlice[0:chunkSize])
+				revisionsSlice = revisionsSlice[chunkSize:len(revisionsSlice)]
+			}
+			revisionSliceChunks = append(revisionSliceChunks, revisionsSlice)
 
 			// Naming these but not using the names at the moment. For more info see:
 			// https://github.com/StefanSchroeder/Golang-Regex-Tutorial/blob/master/01-chapter2.markdown#named-matches
@@ -260,21 +270,14 @@ func main() {
 
 				// Now checking for file contents
 				if doGrep {
-					wg.Add(1)
+					//wg.Add(1)
 					/*
-						mainLogger.Debugf("revision slice length is %d", len(revisionsSlice))
-						There is a problem here with the number of open files if there
-						are a lot of revisions. Each thread opens lots of files
-						so doing it concurrently doesn't work well. May have to make
-						this single threaded.
-
-						Thought this would help but it doesn't.
-
-						if len(revisionsSlice) > 20 {
-							revisionsSlice = revisionsSlice[0:20]
-						}
+					   Deliberately not doing this in a thread as git grep opens a lot of file handles
+					   and so break things if ran concurrently.
 					*/
-					go GrepSearch(&wg, commit, signature, revisionsSlice, gitDir, grepOutputRegexp)
+					for _, chunk := range revisionSliceChunks {
+						GrepSearch(commit, signature, chunk, gitDir, grepOutputRegexp)
+					}
 				}
 			}
 			// Finally check filenames
@@ -357,7 +360,8 @@ func CommitMessageSearch(wg *sync.WaitGroup, commit Commit, signature CommentSig
 	wg.Done()
 }
 
-func GrepSearch(wg *sync.WaitGroup, commit Commit, signature CommentSignature, revisionsSlice []string, gitDir string, grepOutputRegexp *regexp.Regexp) {
+//func GrepSearch(wg *sync.WaitGroup, commit Commit, signature CommentSignature, revisionsSlice []string, gitDir string, grepOutputRegexp *regexp.Regexp) {
+func GrepSearch(commit Commit, signature CommentSignature, revisionsSlice []string, gitDir string, grepOutputRegexp *regexp.Regexp) {
 	var (
 		cmdOut []byte
 		err    error
@@ -408,14 +412,16 @@ func GrepSearch(wg *sync.WaitGroup, commit Commit, signature CommentSignature, r
 			//	mainLogger.Debugf("Commit line: %s", commitLine)
 			//	mainLogger.Debugf("Commit line: %s", grepOutputRegexp)
 			matchBits := grepOutputRegexp.FindStringSubmatch(commitLine)
-			commit := Commits[matchBits[1]]
-			output += commit.GetCommitString()
-			output += fmt.Sprintf("Match In File: %s\n", matchBits[2])
-			output += fmt.Sprintf("Matching Line: %s\n\n", matchBits[3])
+			if len(matchBits) == 4 {
+				commit := Commits[matchBits[1]]
+				output += commit.GetCommitString()
+				output += fmt.Sprintf("Match In File: %s\n", matchBits[2])
+				output += fmt.Sprintf("Matching Line: %s\n\n", matchBits[3])
 
-			mainLogger.Debugf("Adding GrepSearch result with commit ID %s to channel", commit.id)
-			hit := Hit{output}
-			hitsChannel <- hit
+				mainLogger.Debugf("Adding GrepSearch result with commit ID %s to channel", commit.id)
+				hit := Hit{output}
+				hitsChannel <- hit
+			}
 		}
 
 	} else if err.Error() == "exit status 1" {
@@ -425,5 +431,5 @@ func GrepSearch(wg *sync.WaitGroup, commit Commit, signature CommentSignature, r
 	}
 	//	outputStr := string(cmdOut)
 	//	mainLogger.Debugf("Output from command: %s", outputStr)
-	wg.Done()
+	//wg.Done()
 }
