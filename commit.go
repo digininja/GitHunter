@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/michenriksen/gitrob/core"
 	"strings"
 	"time"
+
+	core "github.com/digininja/GitHunter/gitrob"
 )
 
 type Commit struct {

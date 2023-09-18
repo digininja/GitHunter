@@ -4,14 +4,17 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/logrusorgru/aurora"
-	"github.com/michenriksen/gitrob/core"
-	"github.com/sirupsen/logrus"
+
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
+
+	core "github.com/digininja/GitHunter/gitrob"
+
+	"github.com/logrusorgru/aurora"
+	"github.com/sirupsen/logrus"
 )
 
 var au aurora.Aurora
