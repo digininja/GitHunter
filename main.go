@@ -36,6 +36,8 @@ var Banner = ` _______ __________________
 | (   ) || |   | || | \   |   | |   | (      | (\ (   
 | )   ( || (___) || )  \  |   | |   | (____/\| ) \ \__
 |/     \|(_______)|/    )_)   )_(   (_______/|/   \__/
+
+By Robin Wood - https://digi.ninja - robin@digi.ninja
 `
 
 var Usage = func() {
@@ -50,6 +52,7 @@ var Usage = func() {
 var mainLogger = logrus.New()
 var SomethingFound = false
 var Commits map[string]Commit
+var outputDestination *os.File
 
 func main() {
 	gitDirPtr := CommandLine.String("gitdir", ".", "Directory containing the repository")
@@ -59,6 +62,7 @@ func main() {
 	helpPtr := CommandLine.Bool("help", false, "Show usage information")
 	doGrepPtr := CommandLine.Bool("grep", false, "Grep files for content")
 	debugPtr := CommandLine.String("debugLevel", "", "Debug options, I = Info, D = Full Debug")
+	outputToPtr := CommandLine.String("output", "-", "File to write output to, - for standard out")
 
 	CommandLine.Usage = Usage
 	CommandLine.Parse(os.Args[1:])
@@ -77,6 +81,23 @@ func main() {
 		mainLogger.SetLevel(logrus.DebugLevel)
 	default:
 		mainLogger.SetLevel(logrus.InfoLevel)
+	}
+
+	if *outputToPtr == "-" {
+		outputDestination = os.Stdout
+	} else {
+		var err error
+		outputDestination, err = os.Create(*outputToPtr)
+		if err != nil {
+			mainLogger.Fatalf("Error creating the output file: %s", err)
+		}
+	}
+
+	defer outputDestination.Close()
+
+	fmt.Println(Banner)
+	if *outputToPtr != "-" {
+		fmt.Printf("Writing output to: %s\n", *outputToPtr)
 	}
 
 	gitDir := ""
@@ -175,13 +196,13 @@ func main() {
 	if *dumpPtr {
 		pos := len(Commits)
 		for _, c := range Commits {
-			fmt.Printf("Commit Number: %d\n", pos)
+			outputDestination.WriteString(fmt.Sprintf("Commit Number: %d\n", pos))
 			c.PrintCommit()
 			pos = pos - 1
 		}
 	} else {
 		// Have to define this outside the next block so it is available later
-		var revisionsSlice []string
+		var revisionSliceChunks [][]string
 
 		// Only need to pull the list of revisions out once
 		// and only if doing a grep
@@ -213,7 +234,17 @@ func main() {
 			if revList[len(revList)-1:] == "\n" {
 				revList = revList[:len(revList)-1]
 			}
+			var revisionsSlice []string
 			revisionsSlice = strings.Split(revList, "\n")
+			// The higher this number, the more revisions grep will search at once
+			// but the longer it will take doing it and so the output will look
+			// jerky.
+			chunkSize := 100
+			for len(revisionsSlice) > chunkSize {
+				revisionSliceChunks = append(revisionSliceChunks, revisionsSlice[0:chunkSize])
+				revisionsSlice = revisionsSlice[chunkSize:len(revisionsSlice)]
+			}
+			revisionSliceChunks = append(revisionSliceChunks, revisionsSlice)
 
 			// Naming these but not using the names at the moment. For more info see:
 			// https://github.com/StefanSchroeder/Golang-Regex-Tutorial/blob/master/01-chapter2.markdown#named-matches
@@ -222,6 +253,9 @@ func main() {
 		}
 
 		var wg sync.WaitGroup
+
+		done := make(chan bool)
+		go printHits(done)
 
 		for _, commit := range Commits {
 			for _, signature := range CommentSignatures {
@@ -235,65 +269,102 @@ func main() {
 
 				// Check the commit messages
 				wg.Add(1)
-				go fmt.Printf(CommitMessageSearch(&wg, commit, signature))
+				go CommitMessageSearch(&wg, commit, signature)
 
 				// Now checking for file contents
 				if doGrep {
-					wg.Add(1)
-					go fmt.Printf(GrepSearch(&wg, commit, signature, revisionsSlice, gitDir, grepOutputRegexp))
+					//wg.Add(1)
+					/*
+					   Deliberately not doing this in a thread as git grep opens a lot of file handles
+					   and so break things if ran concurrently.
+					*/
+					for _, chunk := range revisionSliceChunks {
+						GrepSearch(commit, signature, chunk, gitDir, grepOutputRegexp)
+					}
 				}
 			}
 			// Finally check filenames
 			wg.Add(1)
-			go fmt.Printf(FilenameSearch(&wg, commit))
-
+			go FilenameSearch(&wg, commit)
 		}
 		wg.Wait()
+		close(hitsChannel)
+		<-done
 		if !SomethingFound {
-			fmt.Println("Sorry, no interesting information found")
+			outputDestination.WriteString(fmt.Sprintln("Sorry, no interesting information found"))
 		}
 	}
 }
 
-func FilenameSearch(wg *sync.WaitGroup, commit Commit) string {
-	output := ""
+type Hit struct {
+	/*
+		Might be better to pass a structure back
+		so the output can do some nice processing on it,
+		but for now, a string to print will do.
 
+		hitType   string
+		commit    Commit
+		signature core.Signature
+	*/
+	output string
+}
+
+var hitsChannel = make(chan Hit, 10)
+
+func printHits(done chan bool) {
+	for hit := range hitsChannel {
+		outputDestination.WriteString(fmt.Sprintf(hit.output))
+		//fmt.Printf("Hit from the hits channel: %s\n", hit.commit.id)
+	}
+	done <- true
+}
+
+func FilenameSearch(wg *sync.WaitGroup, commit Commit) {
 	for _, signature := range core.Signatures {
 		for _, file := range commit.matchFiles {
 			if signature.Match(file) {
+				output := ""
 				output += fmt.Sprintln(au.Bold(au.Blue("File Match")))
 				output += fmt.Sprintf("Description: %s\n", signature.Description())
 				if signature.Comment() != "" {
 					output += fmt.Sprintf("Comment: %s\n", signature.Comment())
 				}
+				output += fmt.Sprintf("Hit on file: %s\n", file.Path)
 				output += commit.GetCommitString()
+
+				mainLogger.Debugf("Adding FilenameSearch result with commit ID %s to channel", commit.id)
+				hit := Hit{output}
+				hitsChannel <- hit
+
 				SomethingFound = true
 			}
 		}
 	}
 	wg.Done()
-	return output
 }
 
-func CommitMessageSearch(wg *sync.WaitGroup, commit Commit, signature CommentSignature) string {
-	output := ""
+func CommitMessageSearch(wg *sync.WaitGroup, commit Commit, signature CommentSignature) {
 	if signature.Match(commit.comment) {
+		output := ""
 		output += fmt.Sprintln(au.Bold(au.Red("Commit Match")))
 		output += fmt.Sprintf("Description: %s\n", signature.GetDescription())
 		if signature.GetComment() != "" {
 			output += fmt.Sprintf("Comment: %s\n", signature.GetComment())
 		}
 		output += commit.GetCommitString()
+
+		mainLogger.Debugf("Adding CommitMessageSearch result with commit ID %s to channel", commit.id)
+		hit := Hit{output}
+		hitsChannel <- hit
+
 		SomethingFound = true
 	}
 
 	wg.Done()
-	return output
 }
 
-func GrepSearch(wg *sync.WaitGroup, commit Commit, signature CommentSignature, revisionsSlice []string, gitDir string, grepOutputRegexp *regexp.Regexp) string {
-	output := ""
-
+//func GrepSearch(wg *sync.WaitGroup, commit Commit, signature CommentSignature, revisionsSlice []string, gitDir string, grepOutputRegexp *regexp.Regexp) {
+func GrepSearch(commit Commit, signature CommentSignature, revisionsSlice []string, gitDir string, grepOutputRegexp *regexp.Regexp) {
 	var (
 		cmdOut []byte
 		err    error
@@ -338,14 +409,22 @@ func GrepSearch(wg *sync.WaitGroup, commit Commit, signature CommentSignature, r
 		cmdOutMap := strings.Split(cmdOutStr, "\n")
 
 		for _, commitLine := range cmdOutMap {
+			output := ""
+
 			output += fmt.Sprintln(au.Bold(au.Green("Grep Match")))
 			//	mainLogger.Debugf("Commit line: %s", commitLine)
 			//	mainLogger.Debugf("Commit line: %s", grepOutputRegexp)
 			matchBits := grepOutputRegexp.FindStringSubmatch(commitLine)
-			commit := Commits[matchBits[1]]
-			output += commit.GetCommitString()
-			output += fmt.Sprintf("Match In File: %s\n", matchBits[2])
-			output += fmt.Sprintf("Matching Line: %s\n\n", matchBits[3])
+			if len(matchBits) == 4 {
+				commit := Commits[matchBits[1]]
+				output += commit.GetCommitString()
+				output += fmt.Sprintf("Match In File: %s\n", matchBits[2])
+				output += fmt.Sprintf("Matching Line: %s\n\n", matchBits[3])
+
+				mainLogger.Debugf("Adding GrepSearch result with commit ID %s to channel", commit.id)
+				hit := Hit{output}
+				hitsChannel <- hit
+			}
 		}
 
 	} else if err.Error() == "exit status 1" {
@@ -355,6 +434,5 @@ func GrepSearch(wg *sync.WaitGroup, commit Commit, signature CommentSignature, r
 	}
 	//	outputStr := string(cmdOut)
 	//	mainLogger.Debugf("Output from command: %s", outputStr)
-	wg.Done()
-	return output
+	//wg.Done()
 }
