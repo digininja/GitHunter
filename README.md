@@ -15,26 +15,25 @@ These instructions aren't best practice, ideally you would install this with `go
 
 1. [Set up your Go environment.](https://golang.org/doc/install)
 2. Change into the Go source directory:
-```
-cd ~go/src/github.com
-```
+   ```
+   cd ~go/src/github.com
+   ```
 1. Make a directory for me and go into it:
-```
-mkdir digininja
-cd digininja
-```
+   ```
+   mkdir digininja ; cd digininja
+   ```
 1. Clone the project:
-```
-git clone https://github.com/digininja/GitHunter.git
-```
+   ```
+   git clone https://github.com/digininja/GitHunter.git
+   ```
 1. Change into the project directory:
-```
-cd GitHunter/
-```
+   ```
+   cd GitHunter/
+   ```
 1. Build it:
-```
-go build
-```
+   ```
+   go build
+   ```
 
 You should now have a binary in the current directory.
 
